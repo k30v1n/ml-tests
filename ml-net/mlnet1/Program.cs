@@ -17,7 +17,8 @@ namespace mlnet1
 
                 switch (opt)
                 {
-                    case "1": IrisFlowerPrediction.Execute(); break;
+                    case "1": IrisFlowerPrediction.TrainModel(); break;
+                    case "2": IrisFlowerPrediction.LoadModelAndPredict(); break;
                 }
             } while (opt != "");
         }

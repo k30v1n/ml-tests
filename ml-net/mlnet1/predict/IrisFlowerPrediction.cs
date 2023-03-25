@@ -1,17 +1,18 @@
 ﻿using Microsoft.ML;
 using Microsoft.ML.Data;
 using System;
+using System.Reflection;
 
 namespace mlnet1.predict
 {
     public class IrisFlowerPrediction
     {
-        public static void Execute()
+        public static void TrainModel()
         {
             Console.WriteLine(typeof(IrisFlowerPrediction).Name);
 
             // STEP 2: Create a ML.NET environment
-            MLContext mlContext = new MLContext();
+            MLContext mlContext = new();
 
             // If working in Visual Studio, make sure the 'Copy to Output Directory'
             // property of iris-data.txt is set to 'Copy always'
@@ -29,25 +30,61 @@ namespace mlnet1.predict
                 .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
             // STEP 4: Train your model based on the data set
+            Console.WriteLine("Training model...");
             var model = pipeline.Fit(trainingDataView);
-            
+
             // STEP 5: Use your model to make a prediction
             // You can change these numbers to test different predictions
 
-            //5.1,3.5,1.4,0.2,Iris-setosa (not in the training model)
-            var prediction = mlContext.Model.CreatePredictionEngine<IrisData, IrisPrediction>(model).Predict(
-                new IrisData()
-                {
-                    SepalLength = 5.1f,
-                    SepalWidth = 3.5f,
-                    PetalLength = 1.4f,
-                    PetalWidth = 0.2f,
-                });
+            // Creating prediction engine
+            Console.WriteLine("Creating prediction engine...");
+            using var predictionEngine = mlContext.Model.CreatePredictionEngine<IrisData, IrisPrediction>(model);
 
+            //5.1,3.5,1.4,0.2,Iris-setosa (not in the training model)
+            Console.WriteLine("Testing prediction...");
+            var prediction = predictionEngine.Predict(new IrisData()
+            {
+                SepalLength = 5.1f,
+                SepalWidth = 3.5f,
+                PetalLength = 1.4f,
+                PetalWidth = 0.2f,
+            });
 
             Console.WriteLine($"Predicted flower type is: {prediction.PredictedLabels}");
+            Console.WriteLine();
+
+            Console.WriteLine("Generating model file...");
+            mlContext.Model.Save(model, trainingDataView.Schema, "model.zip");
+            _model = null;
+
+            Console.WriteLine("Model saved on the filesystem");
         }
 
+        private static ITransformer _model;
+        public static void LoadModelAndPredict()
+        {
+            Console.WriteLine("Loadingmodel file...");
+            MLContext mlContext = new();
+
+            _model ??= mlContext.Model.Load("model.zip", out DataViewSchema inputSchema);
+
+            // Creating prediction engine
+            Console.WriteLine("Creating prediction engine...");
+            using var predictionEngine = mlContext.Model.CreatePredictionEngine<IrisData, IrisPrediction>(_model);
+
+            //5.1,3.5,1.4,0.2,Iris-setosa (not in the training model)
+            Console.WriteLine("Testing prediction...");
+            var prediction = predictionEngine.Predict(new IrisData()
+            {
+                SepalLength = 5.1f,
+                SepalWidth = 3.5f,
+                PetalLength = 1.4f,
+                PetalWidth = 0.2f,
+            });
+
+            Console.WriteLine($"Predicted flower type is: {prediction.PredictedLabels}");
+            Console.WriteLine();
+        }
 
 
         // STEP 1: Define your data structures
