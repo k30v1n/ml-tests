@@ -9,36 +9,40 @@ namespace mlnet1.predict
     {
         public static void TrainModel()
         {
-            Console.WriteLine(typeof(IrisFlowerPrediction).Name);
-
             // STEP 2: Create a ML.NET environment
-            MLContext mlContext = new();
+            var context = new MLContext();
 
             // If working in Visual Studio, make sure the 'Copy to Output Directory'
             // property of iris-data.txt is set to 'Copy always'
-            IDataView trainingDataView = mlContext.Data.LoadFromTextFile<IrisData>(path: "predict/iris-data.txt", hasHeader: false, separatorChar: ',');
+            var data = context.Data.LoadFromTextFile<IrisData>(path: "predict/iris-data.txt", separatorChar: ',');
+            
+            // Splitting source data to a testing data according to test fraction
+            var testDataSplit = context.Data.TrainTestSplit(data, testFraction: 0.1);
 
             // STEP 3: Transform your data and add a learner pipeline (aka classifier)
             // Assign numeric values to text in the "Label" column, because only
             // numbers can be processed during model training.
             // Add a learning algorithm to the pipeline. e.g.(What type of iris is this?)
             // Convert the Label back into original text (after converting to number in step 3)
-            var pipeline = mlContext.Transforms.Conversion.MapValueToKey("Label")
-                .Append(mlContext.Transforms.Concatenate("Features", "SepalLength", "SepalWidth", "PetalLength", "PetalWidth"))
-                .AppendCacheCheckpoint(mlContext)
-                .Append(mlContext.MulticlassClassification.Trainers.SdcaMaximumEntropy(labelColumnName: "Label", featureColumnName: "Features"))
-                .Append(mlContext.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
+            var pipeline = context.Transforms.Conversion.MapValueToKey("Label")
+                .Append(context.Transforms.Concatenate("Features", "SepalLength", "SepalWidth", "PetalLength", "PetalWidth"))
+                .AppendCacheCheckpoint(context)
+                .Append(context.MulticlassClassification.Trainers.SdcaMaximumEntropy(labelColumnName: "Label", featureColumnName: "Features"))
+                .Append(context.Transforms.Conversion.MapKeyToValue("PredictedLabel"));
 
             // STEP 4: Train your model based on the data set
             Console.WriteLine("Training model...");
-            var model = pipeline.Fit(trainingDataView);
+            var model = pipeline.Fit(testDataSplit.TrainSet);
+
+            Console.WriteLine("Checking model predictions with test set...");
+            var testSetPredictions = model.Transform(testDataSplit.TestSet);
+            var predictionMetrics = context.MulticlassClassification.Evaluate(testSetPredictions);
+            Console.WriteLine($"MacroAccuracy:{predictionMetrics.MacroAccuracy}");
 
             // STEP 5: Use your model to make a prediction
-            // You can change these numbers to test different predictions
-
             // Creating prediction engine
             Console.WriteLine("Creating prediction engine...");
-            using var predictionEngine = mlContext.Model.CreatePredictionEngine<IrisData, IrisPrediction>(model);
+            using var predictionEngine = context.Model.CreatePredictionEngine<IrisData, IrisPrediction>(model);
 
             //5.1,3.5,1.4,0.2,Iris-setosa (not in the training model)
             Console.WriteLine("Testing prediction...");
@@ -54,10 +58,11 @@ namespace mlnet1.predict
             Console.WriteLine();
 
             Console.WriteLine("Generating model file...");
-            mlContext.Model.Save(model, trainingDataView.Schema, "model.zip");
-            _model = null;
-
+            context.Model.Save(model, data.Schema, "model.zip");
             Console.WriteLine("Model saved on the filesystem");
+
+            // erasing model cache
+            _model = null;
         }
 
         private static ITransformer _model;
@@ -85,7 +90,6 @@ namespace mlnet1.predict
             Console.WriteLine($"Predicted flower type is: {prediction.PredictedLabels}");
             Console.WriteLine();
         }
-
 
         // STEP 1: Define your data structures
         // IrisData is used to provide training data, and as

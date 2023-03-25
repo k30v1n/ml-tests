@@ -13,6 +13,8 @@ namespace mlnet1
             do
             {
                 Console.WriteLine("Execute..");
+                Console.WriteLine($"1 = {nameof(IrisFlowerPrediction.TrainModel)}");
+                Console.WriteLine($"2 = {nameof(IrisFlowerPrediction.LoadModelAndPredict)}");
                 opt = Console.ReadLine();
 
                 switch (opt)
